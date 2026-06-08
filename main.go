@@ -12,19 +12,61 @@ type User struct {
 	Name string `json:"name"`
 }
 
-var userDB = make(map[int]User)
-var userMutex sync.RWMutex
+type userStore struct {
+	mu     sync.RWMutex
+	users  map[int]User
+	nextID int
+}
+
+func newUserStore() *userStore {
+	return &userStore{
+		users:  make(map[int]User),
+		nextID: 1,
+	}
+}
+
+func (s *userStore) Create(user User) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id := s.nextID
+	s.users[id] = user
+	s.nextID++
+	return id
+}
+
+func (s *userStore) Get(id int) (User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	user, ok := s.users[id]
+	return user, ok
+}
+
+func (s *userStore) Delete(id int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.users[id]; !ok {
+		return false
+	}
+	delete(s.users, id)
+	return true
+}
 
 func main() {
 	mux := http.NewServeMux()
+	store := newUserStore()
 
 	mux.HandleFunc("/", handleRoot)
-
-	mux.HandleFunc("POST /users", createUser)
-
-	mux.HandleFunc("GET /users/{id}", getUser)
-
-	mux.HandleFunc("DELETE /users/{id}", deleteUser)
+	mux.HandleFunc("POST /users", func(w http.ResponseWriter, r *http.Request) {
+		createUser(w, r, store)
+	})
+	mux.HandleFunc("GET /users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		getUser(w, r, store)
+	})
+	mux.HandleFunc("DELETE /users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		deleteUser(w, r, store)
+	})
 
 	fmt.Println("Server started on port 8080:")
 	err := http.ListenAndServe(":8080", mux)
@@ -37,7 +79,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "hello world")
 }
 
-func createUser(w http.ResponseWriter, r *http.Request) {
+func createUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -55,15 +97,12 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userMutex.Lock()
-	defer userMutex.Unlock()
-
-	userDB[len(userDB)+1] = user
+	store.Create(user)
 	w.WriteHeader(http.StatusNoContent)
 
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) {
+func getUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 
 	if err != nil {
@@ -75,10 +114,7 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userMutex.RLock()
-	user, flag := userDB[id]
-	userMutex.RUnlock()
-
+	user, flag := store.Get(id)
 	if !flag {
 		http.Error(w,
 			"user not found",
@@ -102,7 +138,7 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func deleteUser(w http.ResponseWriter, r *http.Request) {
+func deleteUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 
 	if err != nil {
@@ -114,17 +150,14 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := userDB[id]; !ok {
+	if !store.Delete(id) {
 		http.Error(
 			w,
 			"user not found",
-			http.StatusBadRequest,
+			http.StatusNotFound,
 		)
 		return
 	}
-	userMutex.Lock()
-	delete(userDB, id)
-	userMutex.Unlock()
 
 	w.WriteHeader(http.StatusNoContent)
 }
