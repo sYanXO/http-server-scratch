@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -26,9 +31,31 @@ func main() {
 		deleteUser(w, r, store)
 	})))
 
-	fmt.Println("Server started on port 8080:")
-	err := http.ListenAndServe(":8080", mux)
-	if err != nil {
-		fmt.Println(err)
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+
+	go func() {
+		fmt.Println("Server started on port 8080.")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Println(err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	fmt.Println(("Shutting down server...."))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		fmt.Println("Shutdown error: ", err)
+	} else {
+		fmt.Println("Server gracefully stopped")
 	}
 }
