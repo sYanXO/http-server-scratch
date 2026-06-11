@@ -1,11 +1,13 @@
-package main
+package middleware
 
 import (
 	"net"
 	"net/http"
+
+	"github.com/sYanXO/http-server-scratch/internal/rate-limiter"
 )
 
-func rateLimitMiddleware(l *Limiter) func(http.Handler) http.Handler {
+func RateLimitMiddleware(l *rate_limiter.Limiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)

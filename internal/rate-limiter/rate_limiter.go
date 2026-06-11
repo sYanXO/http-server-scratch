@@ -1,4 +1,4 @@
-package main
+package rate_limiter
 
 import (
 	"sync"
@@ -37,8 +37,8 @@ func (l *Limiter) Allow(ip string) bool {
 		}
 		return true
 	}
-	elapsed := now.Sub(b.lastRefillTime).Seconds()
-	refilled := int(elapsed * l.refillRate)
+	aelapsed := now.Sub(b.lastRefillTime).Seconds()
+	refilled := int(aelapsed * l.refillRate)
 
 	if refilled > 0 {
 		b.tokens += refilled

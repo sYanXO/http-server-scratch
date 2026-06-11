@@ -1,21 +1,21 @@
-package main
+package store
 
 import "sync"
 
-type userStore struct {
+type UserStore struct {
 	mu     sync.RWMutex
 	users  map[int]User
 	nextID int
 }
 
-func newUserStore() *userStore {
-	return &userStore{
+func NewUserStore() *UserStore {
+	return &UserStore{
 		users:  make(map[int]User),
 		nextID: 1,
 	}
 }
 
-func (s *userStore) Create(user User) int {
+func (s *UserStore) Create(user User) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -25,7 +25,7 @@ func (s *userStore) Create(user User) int {
 	return id
 }
 
-func (s *userStore) Get(id int) (User, bool) {
+func (s *UserStore) Get(id int) (User, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -33,7 +33,7 @@ func (s *userStore) Get(id int) (User, bool) {
 	return user, ok
 }
 
-func (s *userStore) Delete(id int) bool {
+func (s *UserStore) Delete(id int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

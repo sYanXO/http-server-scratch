@@ -8,27 +8,32 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/sYanXO/http-server-scratch/internal/handlers"
+	"github.com/sYanXO/http-server-scratch/internal/middleware"
+	rate_limiter "github.com/sYanXO/http-server-scratch/internal/rate-limiter"
+	"github.com/sYanXO/http-server-scratch/internal/store"
 )
 
 func main() {
 	mux := http.NewServeMux()
-	store := newUserStore()
+	userStore := store.NewUserStore()
 
-	limiter := NewLimiter(10, 1)
-	wrap := rateLimitMiddleware(limiter)
+	limiter := rate_limiter.NewLimiter(10, 1)
+	wrap := middleware.RateLimitMiddleware(limiter)
 
-	mux.Handle("/", wrap(http.HandlerFunc(handleRoot)))
+	mux.Handle("/", wrap(http.HandlerFunc(handlers.HandleRoot)))
 
 	mux.Handle("POST /users", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		createUser(w, r, store)
+		handlers.CreateUser(w, r, userStore)
 	})))
 
 	mux.Handle("GET /users/{id}", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		getUser(w, r, store)
+		handlers.GetUser(w, r, userStore)
 	})))
 
 	mux.Handle("DELETE /users/{id}", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		deleteUser(w, r, store)
+		handlers.DeleteUser(w, r, userStore)
 	})))
 
 	server := &http.Server{

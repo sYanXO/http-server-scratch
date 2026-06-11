@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -6,19 +6,21 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+
+	"github.com/sYanXO/http-server-scratch/internal/store"
 )
 
-func handleRoot(w http.ResponseWriter, r *http.Request) {
+func HandleRoot(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "hello world")
 }
 
-func createUser(w http.ResponseWriter, r *http.Request, store *userStore) {
+func CreateUser(w http.ResponseWriter, r *http.Request, userStore *store.UserStore) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 
-	var user User
+	var user store.User
 	if err := dec.Decode(&user); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -34,7 +36,7 @@ func createUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 		return
 	}
 
-	id := store.Create(user)
+	id := userStore.Create(user)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -44,7 +46,7 @@ func createUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 	})
 }
 
-func getUser(w http.ResponseWriter, r *http.Request, store *userStore) {
+func GetUser(w http.ResponseWriter, r *http.Request, userStore *store.UserStore) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 
 	if err != nil {
@@ -56,7 +58,7 @@ func getUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 		return
 	}
 
-	user, flag := store.Get(id)
+	user, flag := userStore.Get(id)
 	if !flag {
 		http.Error(w,
 			"user not found",
@@ -80,7 +82,7 @@ func getUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 	w.Write(j)
 }
 
-func deleteUser(w http.ResponseWriter, r *http.Request, store *userStore) {
+func DeleteUser(w http.ResponseWriter, r *http.Request, userStore *store.UserStore) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 
 	if err != nil {
@@ -92,7 +94,7 @@ func deleteUser(w http.ResponseWriter, r *http.Request, store *userStore) {
 		return
 	}
 
-	if !store.Delete(id) {
+	if !userStore.Delete(id) {
 		http.Error(
 			w,
 			"user not found",
