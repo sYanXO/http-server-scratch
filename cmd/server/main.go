@@ -19,8 +19,16 @@ func main() {
 	mux := http.NewServeMux()
 	userStore := store.NewUserStore()
 
-	limiter := rate_limiter.NewLimiter(10, 1)
-	wrap := middleware.RateLimitMiddleware(limiter)
+	// Initialize the new Distributed Redis Rate Limiter
+	// Redis Address, Capacity (10 tokens), Refill Rate (1 token/sec)
+	limiter, err := rate_limiter.NewRedisLimiter("localhost:6379", 10, 1.0)
+	if err != nil {
+		fmt.Printf("Failed to initialize Redis rate limiter: %v\n", err)
+		os.Exit(1) // Exit if we cant connect to Redis
+	}
+
+	//Pass the limiter AND the failOpen flag (true) to the middleware
+	wrap := middleware.RateLimitMiddleware(limiter, true)
 
 	mux.Handle("/", wrap(http.HandlerFunc(handlers.HandleRoot)))
 
@@ -55,7 +63,6 @@ func main() {
 	fmt.Println(("Shutting down server...."))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
